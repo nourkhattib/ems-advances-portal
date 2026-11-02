@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>מפרעות • EMS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet"><link rel="stylesheet" href="css/style.css" />
+<style>
+.portalHero{display:flex;justify-content:space-between;gap:12px;align-items:center}.who{padding:8px 12px;border-radius:999px;background:#ecfdf5;border:1px solid #bbf7d0;color:#047857;font-weight:1000}
+.contextGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.ctx{border:1px solid #e2e8f0;border-radius:20px;padding:13px;background:#fff}.ctx.active{border-color:#86efac;box-shadow:0 0 0 4px rgba(34,197,94,.08)}
+.ctx .m{font-weight:1000;font-size:16px}.ctx .nums{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:10px}.ctx .n{padding:8px;border-radius:13px;background:#f8fafc}.ctx .n small{display:block;color:#64748b;font-weight:900}.ctx .n b{font-size:14px}.monthChoice{display:grid;grid-template-columns:1fr 1fr;gap:8px}.monthBtn{border:1px solid #dbe3ef;border-radius:16px;background:#fff;padding:11px;font-weight:1000;cursor:pointer}.monthBtn.sel{border-color:#22c55e;background:#f0fdf4;color:#166534;box-shadow:0 0 0 4px rgba(34,197,94,.08)}
+.payRow{display:grid;grid-template-columns:130px 1fr 120px 140px;gap:10px;padding:12px;border-bottom:1px solid #edf2f7;align-items:center}.payRow:last-child{border:0}.payer{font-weight:1000}.amt{direction:ltr;font-weight:1000}.empty{padding:20px;text-align:center;color:#64748b;font-weight:900}.modalCard{max-width:640px}.searchHelp{font-size:12px;color:#64748b;font-weight:800;margin-top:6px}
+@media(max-width:720px){.portalHero{align-items:flex-start;flex-direction:column}.contextGrid,.monthChoice{grid-template-columns:1fr}.ctx .nums{grid-template-columns:1fr 1fr 1fr}.payRow{grid-template-columns:1fr 1fr}.payRow .reason{grid-column:1/-1;color:#64748b;font-size:12px}.modalCard{max-height:92vh;overflow:auto}}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="topbar portalHero"><div><div class="h1">מפרעות</div><div class="muted">כניסה אישית • כל מפרעה נרשמת אוטומטית על שם המשלם המחובר</div></div><div class="row"><span id="who" class="who">…</span><button id="logout" class="btn danger">התנתקות</button></div></div>
+  <div class="spacer"></div>
+  <div class="card">
+    <div class="toolbar" style="display:grid;grid-template-columns:1fr 210px auto;gap:10px;align-items:end">
+      <div><label>חיפוש עובד ברשימה</label><input id="filter" class="input" placeholder="שם או ת״ז" /></div>
+      <div><label>חודש להצגה</label><input id="month" class="input" type="month" /></div>
+      <button id="add" class="btn primary">＋ הוספת מפרעה</button>
+    </div>
+    <div class="spacer"></div><div id="list" class="box"></div>
+  </div>
+</div>
+
+<div id="modal" class="overlay" aria-hidden="true"><div class="card modal modalCard">
+  <div class="row" style="justify-content:space-between"><div><div class="h2">הוספת מפרעה</div><div class="muted">המשלם נקבע אוטומטית לפי הסיסמה שנכנסה</div></div><button id="close" class="btn">סגור</button></div>
+  <div class="spacer"></div>
+  <label>עובד *</label><input id="emp" class="input" list="emps" placeholder="הקלד שם / ת״ז ובחר מהרשימה" autocomplete="off"><datalist id="emps"></datalist><div class="searchHelp">לאחר בחירת עובד יוצגו מיד החודש הנוכחי והחודש הקודם.</div>
+  <div id="context"></div>
+  <div id="formRest" style="display:none">
+    <div class="spacer"></div><label>מאיזה חודש שכר לתת את המפרעה? *</label><div id="monthChoice" class="monthChoice"></div>
+    <div class="spacer"></div><label>סכום מפרעה (₪) *</label><input id="amount" class="input" type="number" inputmode="decimal" min="1" step="1" placeholder="למשל 500">
+    <div class="spacer"></div><label>הערה נוספת (לא חובה)</label><input id="note" class="input" placeholder="למשל: מזומן / העברה">
+    <div class="spacer"></div><button id="save" class="btn primary" style="width:100%">שמירת מפרעה</button>
+  </div>
+</div></div>
+<div id="toastHost" class="toastHost"></div>
+<script type="module">
+import { requirePaymentsAuth,getPaymentsName,getPaymentsPayer,clearPaymentsSession,paymentsFetch } from './js/payments-auth.js';
+requirePaymentsAuth();
+const $=id=>document.getElementById(id), payerLabels={nur:'נור',gnaim:'גנאיים',fadi:'פאדי',company:'חברה'};
+let employees=[],payments=[],ctx=null,selectedEmp=null,selectedSalaryMonth='';
+$('who').textContent=`מחובר: ${getPaymentsName()||payerLabels[getPaymentsPayer()]||''}`;
+$('logout').onclick=()=>{clearPaymentsSession();location.href='payments-login.html'};
+function money(x){return `₪ ${Number(x||0).toLocaleString('he-IL',{maximumFractionDigits:2})}`}
+function toast(t,err=false){const d=document.createElement('div');d.className=`toast ${err?'error':'success'}`;d.textContent=t;$('toastHost').appendChild(d);setTimeout(()=>d.remove(),2800)}
+function empLabel(e){return `${e.name||''} (${e.id_number||''}) #${e.id}`}
+function parseId(s){const m=String(s||'').match(/#(\d+)\s*$/);return m?Number(m[1]):null}
+function payerOf(p){if(Number(p.nur_amount)>0)return'nur';if(Number(p.gnaim_amount)>0)return'gnaim';if(Number(p.fadi_amount)>0)return'fadi';if(Number(p.company_amount)>0)return'company';return''}
+function amountOf(p){return Number(p.nur_amount||0)+Number(p.gnaim_amount||0)+Number(p.fadi_amount||0)+Number(p.company_amount||0)}
+function fmt(d){if(!d)return'';const [y,m,dd]=String(d).split('-');return `${dd}.${m}.${y}`}
+async function loadEmployees(){const r=await paymentsFetch('/employees');employees=r.data||[];$('emps').innerHTML=employees.map(e=>`<option value="${empLabel(e).replaceAll('"','&quot;')}"></option>`).join('')}
+async function loadPayments(){const m=$('month').value;if(!m)return;const r=await paymentsFetch(`/payments?month=${encodeURIComponent(m)}`);payments=r.data||[];renderList()}
+function renderList(){const q=$('filter').value.trim().toLowerCase();const map=new Map(employees.map(e=>[String(e.id),e]));const arr=payments.filter(p=>{const e=map.get(String(p.employee_id));return !q || `${e?.name||''} ${e?.id_number||''}`.toLowerCase().includes(q)});if(!arr.length){$('list').innerHTML='<div class="empty">אין מפרעות בחודש הזה</div>';return}$('list').innerHTML=arr.map(p=>{const e=map.get(String(p.employee_id));const payer=payerOf(p);return `<div class="payRow"><div>${fmt(p.payment_date)}</div><div><b>${e?.name||'#'+p.employee_id}</b></div><div class="payer">${payerLabels[payer]||payer}</div><div class="amt">${money(amountOf(p))}</div><div class="reason">${p.reason||''}</div></div>`}).join('')}
+function renderContext(){if(!ctx)return;const card=x=>`<div class="ctx ${selectedSalaryMonth===x.month?'active':''}" data-month="${x.month}"><div class="m">חודש ${x.month.slice(5,7)}/${x.month.slice(0,4)}</div><div class="nums"><div class="n"><small>שכר</small><b>${money(x.gross)}</b></div><div class="n"><small>מפרעות</small><b>${money(x.paid)}</b></div><div class="n"><small>נשאר</small><b>${money(x.remaining)}</b></div></div></div>`;$('context').innerHTML=`<div class="contextGrid">${card(ctx.current)}${card(ctx.previous)}</div>`;$('monthChoice').innerHTML=`<button class="monthBtn ${selectedSalaryMonth===ctx.current.month?'sel':''}" data-m="${ctx.current.month}">מהחודש הנוכחי • ${ctx.current.month.slice(5,7)}/${ctx.current.month.slice(0,4)}</button><button class="monthBtn ${selectedSalaryMonth===ctx.previous.month?'sel':''}" data-m="${ctx.previous.month}">מהחודש הקודם • ${ctx.previous.month.slice(5,7)}/${ctx.previous.month.slice(0,4)}</button>`;$('formRest').style.display='block'}
+async function chooseEmployee(){const id=parseId($('emp').value);selectedEmp=employees.find(e=>Number(e.id)===id)||null;if(!selectedEmp){$('context').innerHTML='';$('formRest').style.display='none';return} $('context').innerHTML='<div class="empty">טוען יתרות…</div>';try{ctx=await paymentsFetch(`/employee-context?employee_id=${id}`);selectedSalaryMonth=ctx.current.month;renderContext()}catch(e){toast(e.message,true)}}
+$('emp').addEventListener('change',chooseEmployee);$('emp').addEventListener('input',()=>{if(!parseId($('emp').value)){$('context').innerHTML='';$('formRest').style.display='none'}});
+$('monthChoice').addEventListener('click',e=>{const b=e.target.closest('[data-m]');if(!b)return;selectedSalaryMonth=b.dataset.m;renderContext()});
+$('add').onclick=()=>{$('modal').classList.add('show');$('modal').setAttribute('aria-hidden','false');$('emp').value='';$('amount').value='';$('note').value='';$('context').innerHTML='';$('formRest').style.display='none';setTimeout(()=>$('emp').focus(),50)};
+function close(){$('modal').classList.remove('show');$('modal').setAttribute('aria-hidden','true')}$('close').onclick=close;$('modal').onclick=e=>{if(e.target===$('modal'))close()};
+$('save').onclick=async()=>{if(!selectedEmp||!selectedSalaryMonth)return toast('בחר עובד וחודש שכר',true);const amount=Number($('amount').value);if(!Number.isFinite(amount)||amount<=0)return toast('סכום לא תקין',true);$('save').disabled=true;$('save').textContent='שומר…';try{await paymentsFetch('/payments',{method:'POST',body:JSON.stringify({employee_id:selectedEmp.id,amount,salary_month:selectedSalaryMonth,note:$('note').value.trim()})});toast(`המפרעה נרשמה על שם ${getPaymentsName()}`);close();$('month').value=selectedSalaryMonth;await loadPayments()}catch(e){toast(e.message,true)}finally{$('save').disabled=false;$('save').textContent='שמירת מפרעה'}};
+$('filter').addEventListener('input',renderList);$('month').addEventListener('change',loadPayments);
+(async()=>{try{await loadEmployees();const now=new Date();const y=now.getFullYear(),m=String(now.getMonth()+1).padStart(2,'0'),d=now.getDate();let dt=new Date(y,now.getMonth(),1);if(d<=10)dt.setMonth(dt.getMonth()-1);$('month').value=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`;await loadPayments()}catch(e){if(String(e.message).includes('Unauthorized')){clearPaymentsSession();location.href='payments-login.html'}else toast(e.message,true)}})();
+</script>
+</body></html>
