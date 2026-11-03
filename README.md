@@ -2,6 +2,12 @@
 
 A separate, locked-down portal where each manager records salary advances (cash given to employees) — part of the [EMS](https://github.com/nourkhattib/ems-workforce-management) system.
 
+## Screenshots
+
+| Desktop | Mobile |
+|---|---|
+| **Login**<br><img src="docs/screenshots/login-desktop.png" width="560"> | <img src="docs/screenshots/login-mobile.png" width="200"> |
+
 ## Highlights
 - **Server-side identity** – the client never sends who the payer is; the Edge Function derives it from the signed JWT, and each manager can write only their own amount column.
 - **Payroll-month logic** – between the 1st and 10th of a month, advances are attributed to the previous payroll month; the real hand-over date is stored separately.
